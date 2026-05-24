@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0b1f1a">
+<title>Dashboard de Asistencia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0b1f1a; --card:#0f2a24; --card2:#0c241f; --ink:#eafff5; --muted:#88b6a7;
+    --line:#1f463c; --accent:#22e08a; --accent2:#54d6ff; --warn:#ffd166; --danger:#ff6b6b;
+    --r:18px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:'Outfit',system-ui,sans-serif;color:var(--ink);
+    background:radial-gradient(120% 70% at 50% -10%,#16463b 0,transparent 55%),var(--bg);
+    min-height:100vh;padding:20px 16px 60px}
+  .wrap{max-width:1120px;margin:0 auto}
+  h1{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:2rem;margin:0;letter-spacing:-.02em}
+  h1 span{color:var(--accent)}
+  .eyebrow{font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);font-weight:600}
+  h2{font-family:'Bricolage Grotesque',sans-serif;font-size:1.05rem;margin:0 0 14px;font-weight:600}
+
+  /* PIN */
+  #gate{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
+  #gate .box{width:100%;max-width:340px;text-align:center}
+  #gate input{width:100%;padding:15px;font-size:1.1rem;text-align:center;letter-spacing:.1em;border-radius:14px;
+    border:1px solid var(--line);background:#0a201b;color:var(--ink);margin:18px 0 12px}
+  .btn{padding:14px 18px;border:none;border-radius:14px;background:var(--accent);color:#04231a;
+    font-weight:700;font-family:'Bricolage Grotesque',sans-serif;font-size:1rem;cursor:pointer;width:100%}
+  .btn:active{transform:scale(.98)}
+  #gateErr{color:var(--danger);font-size:.85rem;min-height:18px;margin-top:6px}
+
+  /* Filtros */
+  .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:18px 0 8px;
+    background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+  .field{display:flex;flex-direction:column;gap:5px}
+  .field label{font-size:.72rem;color:var(--muted);margin-left:2px}
+  .field input,.field select{padding:10px 12px;border-radius:11px;border:1px solid var(--line);
+    background:#0a201b;color:var(--ink);font-family:inherit;font-size:.92rem}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:#0a201b;color:var(--muted);
+    font-size:.82rem;cursor:pointer;font-weight:600}
+  .chip.on{background:var(--accent);color:#04231a;border-color:transparent}
+
+  /* KPIs */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
+  .kpi{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);
+    border-radius:var(--r);padding:16px}
+  .kpi .n{font-family:'Bricolage Grotesque',sans-serif;font-size:2rem;font-weight:800;line-height:1}
+  .kpi .l{color:var(--muted);font-size:.78rem;margin-top:6px}
+  .kpi .n.green{color:var(--accent)} .kpi .n.blue{color:var(--accent2)} .kpi .n.warn{color:var(--warn)}
+
+  /* Grids de gráficos */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+  .panel{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);
+    border-radius:var(--r);padding:16px}
+  .panel.full{grid-column:1/-1}
+  canvas{max-height:300px}
+
+  /* Tabla */
+  table{width:100%;border-collapse:collapse;font-size:.86rem}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;font-size:.74rem;text-transform:uppercase;letter-spacing:.04em}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .bad{color:var(--danger)} .ok{color:var(--accent)}
+  .tablewrap{overflow-x:auto}
+
+  #status{color:var(--muted);font-size:.85rem;padding:8px 2px}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid #2a5247;border-top-color:var(--accent);
+    border-radius:50%;animation:s .7s linear infinite;vertical-align:-2px}
+  @keyframes s{to{transform:rotate(360deg)}}
+
+  @media(max-width:760px){
+    .kpis{grid-template-columns:1fr 1fr}
+    .grid{grid-template-columns:1fr}
+    h1{font-size:1.6rem}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== PIN de acceso ===== -->
+<div id="gate"><div class="box">
+  <div class="eyebrow">Acceso restringido</div>
+  <h1 style="margin-top:6px">Dashboard</h1>
+  <input id="pin" type="password" placeholder="Clave" autocomplete="off">
+  <button class="btn" id="gateBtn">Entrar</button>
+  <div id="gateErr"></div>
+</div></div>
+
+<div class="wrap" id="app" style="display:none">
+  <div class="eyebrow">Análisis de personal</div>
+  <h1>Dashboard de <span>Asistencia</span></h1>
+
+  <!-- Filtros -->
+  <div class="filters">
+    <div class="field"><label>Desde</label><input type="date" id="desde"></div>
+    <div class="field"><label>Hasta</label><input type="date" id="hasta"></div>
+    <div class="field"><label>Área</label><select id="areaFiltro"><option>Todas</option></select></div>
+    <div class="field"><label>Días laborables (rango)</label><input type="number" id="diasLab" min="1" style="width:90px"></div>
+    <div class="field"><label>Atajos</label>
+      <div class="chips">
+        <span class="chip" data-range="hoy">Hoy</span>
+        <span class="chip" data-range="semana">7 días</span>
+        <span class="chip on" data-range="mes">Este mes</span>
+        <span class="chip" data-range="todo">Todo</span>
+      </div>
+    </div>
+  </div>
+  <div id="status"></div>
+
+  <!-- KPIs -->
+  <div class="kpis">
+    <div class="kpi"><div class="n" id="kpiPersonal">–</div><div class="l">Personal</div></div>
+    <div class="kpi"><div class="n green" id="kpiAsist">–</div><div class="l">% Asistencia global</div></div>
+    <div class="kpi"><div class="n blue" id="kpiHoras">–</div><div class="l">Horas totales</div></div>
+    <div class="kpi"><div class="n warn" id="kpiProm">–</div><div class="l">Prom. horas / persona</div></div>
+  </div>
+
+  <!-- Gráficos -->
+  <div class="grid">
+    <div class="panel"><h2>Top 10 — Mayores horas registradas</h2><canvas id="cTop"></canvas></div>
+    <div class="panel"><h2>% de asistencia por área</h2><canvas id="cAreaAsist"></canvas></div>
+    <div class="panel"><h2>Personal que más falta</h2><canvas id="cFaltas"></canvas></div>
+    <div class="panel"><h2>Promedio de horas por área</h2><canvas id="cAreaHoras"></canvas></div>
+  </div>
+
+  <!-- Tabla detalle -->
+  <div class="panel full">
+    <h2>Detalle por persona</h2>
+    <div class="tablewrap">
+      <table id="tabla">
+        <thead><tr>
+          <th>Nombre</th><th>Área</th><th>Cargo</th>
+          <th class="num">Días asist.</th><th class="num">% Asist.</th>
+          <th class="num">Horas tot.</th><th class="num">Prom h/día</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIGURACIÓN  ←  PEGA AQUÍ LA URL /exec DEL NUEVO APPS SCRIPT
+   ============================================================ */
+var DASH_API_URL = "https://script.google.com/macros/s/AKfycbxsbt3p82kpUffcuUTBUoO1JBGcSGz5v9G1vRYngHi_yusd41CLfiXt8OPZUs0QJWzH9Q/exec";
+
+var $ = function(id){ return document.getElementById(id); };
+var datos = { personal:[], registros:[] };
+var clave = '';
+var charts = {};
+
+/* ---------- JSONP (evita CORS) ---------- */
+function jsonp(params){
+  return new Promise(function(resolve,reject){
+    var cb='cb_'+Math.random().toString(36).slice(2);
+    var s=document.createElement('script');
+    var to=setTimeout(function(){limpia();reject(new Error('tiempo agotado'));},20000);
+    function limpia(){clearTimeout(to);delete window[cb];if(s.parentNode)s.parentNode.removeChild(s);}
+    window[cb]=function(d){limpia();resolve(d);};
+    var q=Object.keys(params).map(function(k){return k+'='+encodeURIComponent(params[k]);}).join('&');
+    s.src=DASH_API_URL+'?'+q+'&callback='+cb;
+    s.onerror=function(){limpia();reject(new Error('no se pudo conectar'));};
+    document.body.appendChild(s);
+  });
+}
+
+/* ---------- PIN ---------- */
+$('gateBtn').addEventListener('click', entrar);
+$('pin').addEventListener('keydown', function(e){ if(e.key==='Enter') entrar(); });
+function entrar(){
+  clave = $('pin').value.trim();
+  if(!clave){ $('gateErr').textContent='Escribe la clave.'; return; }
+  $('gateErr').textContent='Verificando…';
+  cargarDatos().then(function(){
+    $('gate').style.display='none'; $('app').style.display='block';
+    initFiltros(); recalcular();
+  }).catch(function(e){ $('gateErr').textContent = e.message; });
+}
+
+function cargarDatos(){
+  if(DASH_API_URL.indexOf('PEGA_AQUI')===0) return Promise.reject(new Error('Falta configurar DASH_API_URL en el código.'));
+  return jsonp({action:'getData', clave:clave}).then(function(r){
+    if(!r || !r.ok) throw new Error((r&&r.error)||'Respuesta inválida');
+    datos.personal = r.personal||[];
+    datos.registros = r.registros||[];
+    if(datos.personal.length===0) throw new Error('No hay personal cargado en la hoja.');
+  });
+}
+
+/* ============================================================
+   Filtros
+   ============================================================ */
+function initFiltros(){
+  // Áreas únicas
+  var areas = {};
+  datos.personal.forEach(function(p){ areas[p.area]=true; });
+  var sel=$('areaFiltro'); sel.innerHTML='<option>Todas</option>';
+  Object.keys(areas).sort().forEach(function(a){
+    var o=document.createElement('option'); o.value=a; o.textContent=a; sel.appendChild(o);
+  });
+  aplicarRango('mes');
+
+  $('desde').addEventListener('change', recalcular);
+  $('hasta').addEventListener('change', function(){ recalcular(); });
+  $('areaFiltro').addEventListener('change', recalcular);
+  $('diasLab').addEventListener('change', recalcular);
+  document.querySelectorAll('.chip').forEach(function(c){
+    c.addEventListener('click', function(){
+      document.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
+      c.classList.add('on'); aplicarRango(c.dataset.range); recalcular();
+    });
+  });
+}
+
+function ymd(d){ return d.toISOString().slice(0,10); }
+function aplicarRango(tipo){
+  var hoy=new Date(); var desde, hasta=new Date(hoy);
+  if(tipo==='hoy'){ desde=new Date(hoy); }
+  else if(tipo==='semana'){ desde=new Date(hoy); desde.setDate(desde.getDate()-6); }
+  else if(tipo==='mes'){ desde=new Date(hoy.getFullYear(),hoy.getMonth(),1); }
+  else { // todo: usa la fecha más antigua de los registros
+    var fechas=datos.registros.map(function(r){return r.fecha;}).sort();
+    desde = fechas.length ? new Date(fechas[0]+'T00:00:00') : new Date(hoy);
+  }
+  $('desde').value=ymd(desde); $('hasta').value=ymd(hasta);
+  $('diasLab').value = diasLaborables($('desde').value,$('hasta').value);
+}
+
+function diasLaborables(desde,hasta){
+  var d=new Date(desde+'T00:00:00'), end=new Date(hasta+'T00:00:00'), c=0;
+  if(isNaN(d)||isNaN(end)||d>end) return 0;
+  while(d<=end){ var w=d.getDay(); if(w!==0&&w!==6)c++; d.setDate(d.getDate()+1); }
+  return c;
+}
+
+/* ============================================================
+   Cálculo de métricas
+   ============================================================ */
+function segundos(hhmmss){
+  var p=String(hhmmss).split(':'); if(p.length<2) return null;
+  return (+p[0])*3600 + (+p[1])*60 + (+(p[2]||0));
+}
+
+function recalcular(){
+  var desde=$('desde').value, hasta=$('hasta').value;
+  var areaSel=$('areaFiltro').value;
+  var diasLab=Math.max(1, parseInt($('diasLab').value,10) || diasLaborables(desde,hasta) || 1);
+
+  // info por persona
+  var info={}; // nombre -> {area,cargo,dias:{}, horas, diasSet}
+  datos.personal.forEach(function(p){
+    if(areaSel!=='Todas' && p.area!==areaSel) return;
+    info[p.nombre]={area:p.area,cargo:p.cargo,porDia:{},horas:0,dias:0};
+  });
+
+  // recorrer registros del rango
+  datos.registros.forEach(function(r){
+    if(r.fecha<desde || r.fecha>hasta) return;
+    var per=info[r.nombre]; if(!per) return; // filtra por área
+    if(!per.porDia[r.fecha]) per.porDia[r.fecha]={ing:null,sal:null};
+    var seg=segundos(r.hora); if(seg===null) return;
+    var dd=per.porDia[r.fecha];
+    if(r.tipo==='INGRESO'){ if(dd.ing===null||seg<dd.ing) dd.ing=seg; }
+    if(r.tipo==='SALIDA'){  if(dd.sal===null||seg>dd.sal) dd.sal=seg; }
+  });
+
+  // consolidar horas y días
+  var personas=[];
+  Object.keys(info).forEach(function(nom){
+    var per=info[nom], horas=0, dias=0;
+    Object.keys(per.porDia).forEach(function(f){
+      var dd=per.porDia[f];
+      if(dd.ing!==null) dias++;                 // asistió ese día
+      if(dd.ing!==null && dd.sal!==null && dd.sal>dd.ing) horas += (dd.sal-dd.ing)/3600;
+    });
+    var pct=Math.min(100, Math.round((dias/diasLab)*1000)/10);
+    var promDia = dias>0 ? Math.round((horas/dias)*10)/10 : 0;
+    personas.push({nombre:nom,area:per.area,cargo:per.cargo,dias:dias,
+      ausencias:Math.max(0,diasLab-dias),pct:pct,horas:Math.round(horas*10)/10,promDia:promDia});
+  });
+
+  pintarKPIs(personas,diasLab);
+  pintarTop(personas);
+  pintarFaltas(personas);
+  pintarPorArea(personas,diasLab);
+  pintarTabla(personas);
+  $('status').textContent='Periodo '+desde+' a '+hasta+' · '+personas.length+' personas · '+diasLab+' días laborables';
+}
+
+/* ============================================================
+   Render
+   ============================================================ */
+function pintarKPIs(personas,diasLab){
+  var n=personas.length;
+  var totalDias=personas.reduce(function(a,p){return a+p.dias;},0);
+  var totalHoras=personas.reduce(function(a,p){return a+p.horas;},0);
+  var asistGlobal = n>0 ? Math.round((totalDias/(n*diasLab))*1000)/10 : 0;
+  $('kpiPersonal').textContent=n;
+  $('kpiAsist').textContent=asistGlobal+'%';
+  $('kpiHoras').textContent=Math.round(totalHoras)+' h';
+  $('kpiProm').textContent=(n>0?Math.round((totalHoras/n)*10)/10:0)+' h';
+}
+
+function chart(id,cfg){
+  if(charts[id]) charts[id].destroy();
+  charts[id]=new Chart($(id).getContext('2d'),cfg);
+}
+var GRID={color:'#1f463c'}, TICK={color:'#88b6a7',font:{family:'Outfit'}};
+function baseOpts(horizontal){
+  return {responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+    indexAxis:horizontal?'y':'x',
+    scales:{x:{grid:GRID,ticks:TICK},y:{grid:GRID,ticks:TICK}}};
+}
+
+function pintarTop(personas){
+  var top=personas.slice().sort(function(a,b){return b.horas-a.horas;}).slice(0,10);
+  chart('cTop',{type:'bar',
+    data:{labels:top.map(function(p){return p.nombre;}),
+      datasets:[{data:top.map(function(p){return p.horas;}),backgroundColor:'#22e08a',borderRadius:6}]},
+    options:baseOpts(true)});
+}
+
+function pintarFaltas(personas){
+  var f=personas.slice().filter(function(p){return p.ausencias>0;})
+        .sort(function(a,b){return b.ausencias-a.ausencias;}).slice(0,10);
+  chart('cFaltas',{type:'bar',
+    data:{labels:f.map(function(p){return p.nombre;}),
+      datasets:[{data:f.map(function(p){return p.ausencias;}),backgroundColor:'#ff6b6b',borderRadius:6}]},
+    options:baseOpts(true)});
+}
+
+function pintarPorArea(personas,diasLab){
+  var ar={};
+  personas.forEach(function(p){
+    if(!ar[p.area]) ar[p.area]={dias:0,horas:0,n:0};
+    ar[p.area].dias+=p.dias; ar[p.area].horas+=p.horas; ar[p.area].n++;
+  });
+  var labels=Object.keys(ar).sort();
+  var asist=labels.map(function(a){return Math.round((ar[a].dias/(ar[a].n*diasLab))*1000)/10;});
+  var prom =labels.map(function(a){return ar[a].n>0?Math.round((ar[a].horas/ar[a].n)*10)/10:0;});
+  chart('cAreaAsist',{type:'bar',
+    data:{labels:labels,datasets:[{data:asist,backgroundColor:'#54d6ff',borderRadius:6}]},
+    options:baseOpts(false)});
+  chart('cAreaHoras',{type:'bar',
+    data:{labels:labels,datasets:[{data:prom,backgroundColor:'#ffd166',borderRadius:6}]},
+    options:baseOpts(false)});
+}
+
+function pintarTabla(personas){
+  var tb=$('tabla').querySelector('tbody'); tb.innerHTML='';
+  personas.sort(function(a,b){return b.horas-a.horas;}).forEach(function(p){
+    var tr=document.createElement('tr');
+    var cls=p.pct>=80?'ok':(p.pct<50?'bad':'');
+    tr.innerHTML='<td>'+esc(p.nombre)+'</td><td>'+esc(p.area)+'</td><td>'+esc(p.cargo||'')+'</td>'+
+      '<td class="num">'+p.dias+'</td><td class="num '+cls+'">'+p.pct+'%</td>'+
+      '<td class="num">'+p.horas+'</td><td class="num">'+p.promDia+'</td>';
+    tb.appendChild(tr);
+  });
+}
+function esc(s){return String(s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+</script>
+</body>
+</html>
