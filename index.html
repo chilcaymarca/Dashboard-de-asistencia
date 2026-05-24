@@ -150,7 +150,7 @@
 /* ============================================================
    CONFIGURACIÓN  ←  PEGA AQUÍ LA URL /exec DEL NUEVO APPS SCRIPT
    ============================================================ */
-var DASH_API_URL = "https://script.google.com/macros/s/AKfycbxsbt3p82kpUffcuUTBUoO1JBGcSGz5v9G1vRYngHi_yusd41CLfiXt8OPZUs0QJWzH9Q/exec";
+var DASH_API_URL = "https://script.google.com/macros/s/AKfycbwEzdYOsMcWXcd4SyRi7YpWg3D1_DxR9o5EseE4D6dtONWIb6wXpZ5CnoGdbOmf7YPP9A/exec";
 
 var $ = function(id){ return document.getElementById(id); };
 var datos = { personal:[], registros:[] };
@@ -227,7 +227,11 @@ function aplicarRango(tipo){
   else if(tipo==='semana'){ desde=new Date(hoy); desde.setDate(desde.getDate()-6); }
   else if(tipo==='mes'){ desde=new Date(hoy.getFullYear(),hoy.getMonth(),1); }
   else { // todo: usa la fecha más antigua de los registros
-    var fechas=datos.registros.map(function(r){return r.fecha;}).sort();
+    var fechas=datos.registros.map(function(r){
+      var s=String(r.fecha); var m=s.match(/\d{4}-\d{2}-\d{2}/);
+      if(m) return m[0];
+      var d=new Date(s); return isNaN(d)?'' : d.toISOString().slice(0,10);
+    }).filter(Boolean).sort();
     desde = fechas.length ? new Date(fechas[0]+'T00:00:00') : new Date(hoy);
   }
   $('desde').value=ymd(desde); $('hasta').value=ymd(hasta);
@@ -254,6 +258,16 @@ function recalcular(){
   var areaSel=$('areaFiltro').value;
   var diasLab=Math.max(1, parseInt($('diasLab').value,10) || diasLaborables(desde,hasta) || 1);
 
+  // Normaliza una fecha que pudiera venir en formato largo a "yyyy-MM-dd"
+  function fechaOK(f){
+    var s=String(f);
+    var m=s.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if(m) return m[1]+'-'+m[2]+'-'+m[3];
+    var d=new Date(s);
+    if(!isNaN(d)) return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+    return s;
+  }
+
   // info por persona
   var info={}; // nombre -> {area,cargo,dias:{}, horas, diasSet}
   datos.personal.forEach(function(p){
@@ -263,11 +277,12 @@ function recalcular(){
 
   // recorrer registros del rango
   datos.registros.forEach(function(r){
-    if(r.fecha<desde || r.fecha>hasta) return;
+    var fr=fechaOK(r.fecha);
+    if(fr<desde || fr>hasta) return;
     var per=info[r.nombre]; if(!per) return; // filtra por área
-    if(!per.porDia[r.fecha]) per.porDia[r.fecha]={ing:null,sal:null};
+    if(!per.porDia[fr]) per.porDia[fr]={ing:null,sal:null};
     var seg=segundos(r.hora); if(seg===null) return;
-    var dd=per.porDia[r.fecha];
+    var dd=per.porDia[fr];
     if(r.tipo==='INGRESO'){ if(dd.ing===null||seg<dd.ing) dd.ing=seg; }
     if(r.tipo==='SALIDA'){  if(dd.sal===null||seg>dd.sal) dd.sal=seg; }
   });
